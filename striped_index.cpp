@@ -58,7 +58,7 @@ public:
     stripes = new int *[k];
   };
 
-  void index(char **str) {
+  void index(const char **str) {
 
     // count
     for(int i=0; i<n; i++)
@@ -74,8 +74,8 @@ public:
 	ix[i]=ix[i+1]-ix[i];
     }
     
-    char **p = new char *[n];
-    char **q = new char *[n];
+    const char **p = new const char *[n];
+    const char **q = new const char *[n];
 
     index_stripe(k-1, str, q);
 
@@ -88,7 +88,7 @@ public:
     delete[] q;
   };
 
-  void index_stripe(int j, char **p, char **pdst) {
+  void index_stripe(int j, const char **p, const char **pdst) {
     stripes[j] = new int[n]();
     for(int i=0; i<n; i++) {
       char c = p[i][j];
@@ -97,41 +97,6 @@ public:
       pdst[dst] = p[i];
     }
   }
-
-  void dump_index() {
-    printf("digraph stripes { node [\nshape=record];\nrankdir=\"LR\";\n");
-
-    for(int j=0; j<k; j++)
-      dump_stripe(j);
-    
-    printf("stripe%i[label=\"", k);
-    for(int i=0; i<n-1; i++)
-      printf("<%i> $%i |",i, i);
-    printf("<%i> $%i \"]",n-1, n-1);
-    printf("}\n");
-  };
-  
-  void dump_stripe(int j) {
-    int * s=charindex[j];
-    printf("stripe%i[label=\"", j);
-    char sep =' ';
-    for(int c=0; c < 127; c++) {
-
-      int lo= c ? s[c-1] : 0;
-      if(lo < s[c]) {
-
-	printf("%c ",sep);
-	sep = '|';
-	
-	for(int i=lo; i<s[c]-1; i++)
-	  printf(" <%i> %c %i |", i, c, stripes[j][i]);
-	printf(" <%i> %c %i ", s[c]-1, c, stripes[j][s[c]-1]); 
-      }
-    };
-    printf("\"];\n");
-    for(int i=0; i<n; i++)
-      printf("stripe%i:%i -> stripe%i:%i\n", j,i,j+1,stripes[j][i]);
-  };
 
   void decode(int j, int i, char *out) {
     for(; j < k; j++) {
@@ -155,40 +120,81 @@ public:
     int *lo = s + (c == 0 ? 0 : charindex[j][c-1]);
     int *hi = s + charindex[j][c];
 
-    printf("searching for [%i,%i] in stripe %i[%i,%i)\n", vlo, vhi, j, lo-s, hi-s);
+    printf("searching for [%i,%i] in stripe %i[%li,%li)\n", vlo, vhi, j, lo-s, hi-s);
     
     // contract sorted range to values in [vlo, vhi]
     int* newlo = std::lower_bound(lo, hi, vlo); // first elt >= vlo
     int* newhi = std::upper_bound(newlo, hi, vhi); // first elt > vhi or end. can use newlo as start
 
-    if( newlo == newhi ) // empty, including off end
-      return false;
-    
     *ixlo = newlo-s;
     *ixhi = newhi-s-1; // half open to closed
 
-    return true;
+    return newlo != newhi;
     }
+
+  // create pretty graphviz
+  void dump_index() {
+    printf("digraph stripes { node [\nshape=record];\nrankdir=\"LR\";\n");
+
+    for(int j=0; j<k; j++)
+      dump_stripe(j);
+    
+    printf("stripe%i[label=\"", k);
+    for(int i=0; i<n-1; i++)
+      printf("<%i> $%i |",i, i);
+    printf("<%i> $%i \"]",n-1, n-1);
+    printf("\n}\n");
+  };
+  
+  void dump_stripe(int j) {
+    int * s=charindex[j];
+    if(!s)
+      return;
+    
+    printf("stripe%i[label=\"", j);
+    char sep =' ';
+    for(int c=0; c < 127; c++) {
+
+      int lo= c ? s[c-1] : 0;
+      if(lo < s[c]) {
+
+	printf("%c ",sep);
+	sep = '|';
+	
+	for(int i=lo; i<s[c]-1; i++)
+	  printf(" <%i> %c %i |", i, c, stripes[j][i]);
+	printf(" <%i> %c %i ", s[c]-1, c, stripes[j][s[c]-1]); 
+      }
+    };
+    printf("\"];\n");
+    for(int i=0; i<n; i++)
+      printf("stripe%i:%i -> stripe%i:%i\n", j,i,j+1,stripes[j][i]);
+  };
+
+
 };
 
 
 int main() {
   
-  char * strings[] = {"cat", "cab", "abe","bat"};
+  const char * strings[] = {"road", "bead", "boat","load"};
   
-  StripedIndex si(3,4);
+  StripedIndex si(4,4);
   printf("indexing\n");
   si.index(strings);
   printf("dumping\n");
   si.dump_index();
   printf("decode\n");
-  si.decode(0,0);
+  char out[5];
+  si.decode(0,0, out);
+  printf("decoded %s\n", out);
+  
   printf("search\n");
   // "at" search from stripe 2
-  int tlo= si.charindex[2]['t'-1];
-  int thi= si.charindex[2]['t']-1;
+  int tlo= si.charindex[2]['a'-1];
+  int thi= si.charindex[2]['a']-1;
   int newhi, newlo;
-  bool ok = si.newrange(1,'a',tlo, thi, &newlo, &newhi);
+  bool ok = si.newrange(1,'e',tlo, thi, &newlo, &newhi);
 
   if(ok) {
     printf("search new range is [%i, %i]\n", newlo, newhi);
