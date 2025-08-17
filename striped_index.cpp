@@ -58,13 +58,17 @@ public:
     stripes = new int *[k];
   };
 
-  void index(const char **str) {
+  void index(const unsigned char **str) {
 
+    printf("counts n=%i k=%i\n", n, k);
+    
     // count
     for(int i=0; i<n; i++)
       for(int j=0; j<k; j++)
 	charindex[j][str[i][j]]++;
 
+    printf("prefix sum %i stripes\n", k);
+    
     // i-1 prefix sum
     for(int j=0; j<k; j++) {
       int *ix = charindex[j];
@@ -74,8 +78,8 @@ public:
 	ix[i]=ix[i+1]-ix[i];
     }
     
-    const char **p = new const char *[n];
-    const char **q = new const char *[n];
+    const unsigned char **p = new const unsigned char *[n];
+    const unsigned char **q = new const unsigned char *[n];
 
     index_stripe(k-1, str, q);
 
@@ -88,10 +92,10 @@ public:
     delete[] q;
   };
 
-  void index_stripe(int j, const char **p, const char **pdst) {
+  void index_stripe(int j, const unsigned char **p, const unsigned char **pdst) {
     stripes[j] = new int[n]();
     for(int i=0; i<n; i++) {
-      char c = p[i][j];
+      unsigned char c = p[i][j];
       int dst =	charindex[j][c]++;
       stripes[j][dst] = i;
       pdst[dst] = p[i];
@@ -107,30 +111,69 @@ public:
 	int *p = std::upper_bound(ix, ix+256, i);
 	int c = p-ix;
 	*out++ = c;
+	//printf("%c", c);
       }
-      //      printf("%c[%i] ", c, i);
+      //printf("[%i] ", i);
+
       i = s[i];
     }
+    *out = 0;
   }
   
   /* find [vlo,vhi] in the c bucket of stripe j, return range as indices, closed interval */
-  bool newrange(int j, char c, int vlo, int vhi, int *ixlo, int*ixhi) {
+  bool newrange(int j, char c, int *vlo, int *vhi) {
     int *s = stripes[j];
     // set search range [lo,hi) to char c bucket
-    int *lo = s + (c == 0 ? 0 : charindex[j][c-1]);
-    int *hi = s + charindex[j][c];
+    int clo = (c == 0 ? 0 : charindex[j][c-1]);
+    int chi = charindex[j][c];
 
-    printf("searching for [%i,%i] in stripe %i[%li,%li)\n", vlo, vhi, j, lo-s, hi-s);
-    
-    // contract sorted range to values in [vlo, vhi]
-    int* newlo = std::lower_bound(lo, hi, vlo); // first elt >= vlo
-    int* newhi = std::upper_bound(newlo, hi, vhi); // first elt > vhi or end. can use newlo as start
+    printf("newrange: %c[%i, %i)\n", c, clo, chi);
 
-    *ixlo = newlo-s;
-    *ixhi = newhi-s-1; // half open to closed
+    if(*vhi < 0) { // starting qry
+      *vlo = clo;
+      *vhi = chi-1;
+    } else {
+      // contract sorted range to values in [vlo, vhi]
+      int *lo = s + clo;
+      int *hi = s + chi;
+      printf("searching for [%i,%i] in stripe %i[%li,%li)\n", *vlo, *vhi, j, lo-s, hi-s);
+      int *newlo = std::lower_bound(lo, hi, *vlo); // first elt >= vlo
+      int *newhi = std::upper_bound(newlo, hi, *vhi); // first elt > vhi or end. can use newlo as start
 
-    return newlo != newhi;
+      *vlo = newlo-s;
+      *vhi = newhi-s-1; // half open to closed
     }
+    return *vlo <= *vhi;
+    }
+
+  bool search_from(int j, char *qry, int qrylen, int *lo, int *hi) {
+
+    *lo= *hi= -1;
+
+    printf("search from %i for %s\n", j, qry);
+
+    int first = j-qrylen;
+    for(; j > first && newrange(j, qry[--qrylen], lo, hi); j--)
+      ;
+
+    if( j == first )
+      return true;
+    else {
+      *lo=*hi=-1;
+      return false;
+    }
+  }
+
+  void search(char *qry, int *los, int *his) {
+    int qrylen = strlen(qry);
+    printf("search start %s %i\n", qry, qrylen);
+    for(int j= qrylen-1; j<k; j++) {
+      bool found = search_from(j, qry, qrylen, los, his);
+      if(found)
+	printf("search match at %i[%i, %i]\n", j, *los, *his);
+      los++; his++;
+    }
+  }
 
   // create pretty graphviz
   void dump_index() {
@@ -171,36 +214,93 @@ public:
       printf("stripe%i:%i -> stripe%i:%i\n", j,i,j+1,stripes[j][i]);
   };
 
+  void dump_stats() {
+    int *freq = new int[100]();
+    for(int j=0; j<k; j++)
+      for(int i=1; i<n; i++) {
+	int d = stripes[j][i]-stripes[j][i-1];
+	if(d>=0 and d<100)
+	  freq[d]++;
+      };
+    for(int d=1; d<100; d++)
+      printf("freq[%i]=%i\n", d, freq[d]);
+  }
+
 
 };
 
 
 int main() {
   
-  const char * strings[] = {"road", "bead", "boat","load"};
+  const unsigned char * strings[1000];
+  unsigned char strheap[1000*100];
+
+  FILE *f = fopen("sample.txt", "r");
+
   
-  StripedIndex si(4,4);
+  int i=0;
+  for(  i = 0; i < 1000; i++) {
+    unsigned char *p = strheap + i*100;
+    if( !fgets((char *) p, 100, f))
+      break;
+
+    //for(int l = strlen((char *)p)-1; l < 81; l++)
+    //  p[l]=' ';
+
+    strings[i]=p;
+  }
+
+  int n = i;
+  printf("%i records read\n", n);
+
+  StripedIndex si(80,n);
   printf("indexing\n");
   si.index(strings);
-  printf("dumping\n");
-  si.dump_index();
+  //printf("dumping\n");
+  //  si.dump_index();
+  si.dump_stats();
   printf("decode\n");
-  char out[5];
-  si.decode(0,0, out);
-  printf("decoded %s\n", out);
+  char out[100];
+  si.decode(0, n/2, out);
+  printf("decoded [%s]\n", out);
+  si.decode(0, 0, out);
+  printf("decoded [%s]\n", out);
+  si.decode(0, 250, out);
+  printf("decoded [%s]\n", out);
   
   printf("search\n");
-  // "at" search from stripe 2
-  int tlo= si.charindex[2]['a'-1];
-  int thi= si.charindex[2]['a']-1;
-  int newhi, newlo;
-  bool ok = si.newrange(1,'e',tlo, thi, &newlo, &newhi);
+  //  search from stripe 
+  char qry[] = "7 eleven";
 
-  if(ok) {
-    printf("search new range is [%i, %i]\n", newlo, newhi);
-  } else
-    printf("search failed\n");
+  int lo= -1;
+  int hi= -1;
+  bool found = si.search_from(strlen(qry)-1, qry, strlen(qry), &lo, &hi);
+  //int j;
+  //for(j=strlen(qry)-1; j >= 0 && si.newrange(j, qry[j],&lo, &hi); j--)
+  //  ;
 
+  if(found) {
+    printf("found at [%i, %i]\n", lo,hi);
+
+    printf("%i matches\n", hi-lo+1);
+    for(int i=lo; i<=hi; i++) {
+      si.decode(0, i, out);
+      printf("match [%s]\n", out);
+    }
+  }
+
+  char qry2[] = "7 eleven";
+  int* los = new int[80]();
+  int* his = new int[80]();
+
+  si.search(qry2, los, his);
+
+  for(int j=0; j<80; j++) {
+    if(los[j] >= 0) {
+      printf("search found %s at %i[ %i, %i]\n", qry2, j, los[j],his[j]);
+    }
+  }
+  
   printf("\n end \n\n");
   
 }
