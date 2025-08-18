@@ -129,7 +129,7 @@ A faster fulltext index for large numbers of short (~80 character) strings. This
 </svg>
 
 
-Figure 1. A Striped Index for "cat$0cab$1abe$2bat$3". Character labels are not stored explicitly and are looked up by range in charindex.
+Figure 1. A Striped Index for "cat$0cab$1abe$2bat$3". Each word is represented by a linked list which may be followed to reconstruct each character by position. Character labels are not stored explicitly and are looked up by range in charindex.
 
 Conventional suffix sorting algorithms handle the multiple string case by concatenating them into a single string, separated by metacharacter terminators $0..$n-1, and feeding that into an algorithm built for a single string, which incurs significant overhead. The Striped Index takes advantage of the fact that comparisons stop at terminators and works backwards ("induced sorting") from their ordering. The main difference is that suffixes are not merged into a single sorted array but are instead kept in columnwise "stripes". 
 
@@ -150,15 +150,24 @@ Figure 2: The inner indexing loop.
 
 One positive aspect of breaking the index into stripes is manageability at large scale, because each stripe is a fraction of the overall index, built one at a time, and immutable thereafter. Once a stripe is populated it can be compressed, flushed to disk, and otherwise removed from concern until search.
 
-To reduce memory footprint the input strings can also be transposed to individual columns; the only requirement during indexing is that one column at a time fits in memory or is randomly accessible (since the access pattern is permuted). 
+To reduce memory footprint the input strings can also be transposed to individual columns in a separate process; the only requirement during indexing is that one column at a time fits in memory or is randomly accessible (since the access pattern is permuted). 
 
 Once built a stripe is a rank/select data structure; any structure that implements select ([]) and finding the rank of a value in a sorted range will work; there are a number of succinct or low-overhead techniques. In particular if compression is used, an index of some sort is typically needed for selection.
 
-Another possibility is to store a stripe as a column in a columnstore data warehouse; these systems implement selection and rank with varying degrees of efficiency.
+Another possibility is to store a stripe as a column in a columnstore data warehouse; these systems implement compression, selection and rank with varying degrees of efficiency.
 
 ## Search
 
 The main tradeoff with this technique is that search must proceed from all the stripes instead of one array, since the columns are separated. Hence the emphasis on short records; iterating through a large number of stripes and initiating a search from each one could be prohibitive.
+
+    for(int j= qrylen-1; j<k; j++) {
+      bool found = search_from(j, qry, qrylen, los, his);
+      if(found)
+        printf("search match at %i[%i, %i]\n", j, *los, *his);
+      los++; his++;
+    }
+
+Figure 3: Searching from each possible offset. Found ranges go into an array.
 
 Right-to-left search is similar to the FM Index, where the last character is looked up in charindex as a range in stripe j, and the second-to-last is then looked up in stripe j-1 and narrowed to the value range in stripe j, and so on iteratively to the beginning of the search string. 
 
