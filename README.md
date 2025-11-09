@@ -1,14 +1,22 @@
 # Striped Index -- fulltext indexing at gigabytes per second
-A faster fulltext index for large numbers of short (~80 character) strings. This index decomposes the suffix array into stripes which each index only one column (offset from the end) of the input strings. Each stripe is in lexical order, with each element pointing to its suffix in the next stripe, allowing search and decoding via character indices.
+A fulltext index for large numbers of short (~80 character) strings, which trades a minor increase in search overhead for a major (GB/s) increase in indexing speed. Saving each stage of LSD Radix Sort decomposes the suffix array into *stripes* which each index only one column (offset from the end) of the input. Radixwise backward search is similar to the FM Index, with the additional cost of starting from every column. 
+
+Each stripe is in lexical order, with each element pointing to its suffix in the next stripe, allowing search and decoding via character indices.
 ![striped](https://github.com/user-attachments/assets/5c5f3423-c26a-4c9f-8629-3473be09cbda)
 <svg width="672" height="615" viewBox="0 0 504 461.25" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g id="graph0" class="graph" transform="translate(85.875,292.7249984741211) scale(1)">
 
 Figure 1. A Striped Index for "cat$0cab$1abe$2bat$3". Each word is represented by a linked list which may be followed to reconstruct each character by position. Character labels are not stored explicitly and are looked up by range in charindex.
 
-Conventional suffix sorting algorithms handle the multiple string case by concatenating them into a single string, separated by metacharacter terminators $0..$n-1, and feeding that into an algorithm built for a single string, which incurs significant overhead. The Striped Index takes advantage of the fact that comparisons stop at terminators and works backwards ("induced sorting") from their ordering. The main difference is that suffixes are not merged into a single sorted array but are instead kept in columnwise "stripes". 
+Historically, suffix sorting algorithms have handled the multiple string case by concatenating them into a single string, separated by metacharacter terminators $0..$n-1, and feeding that into an algorithm built for a single string. These implementations, though often linear-time, still take hundreds of instructions per character; throughput of a few GB per hour is typical.
 
-Producing the stripes is a linear-time process which is largely counting sort; elements representing suffixes are placed into buckets according to 1) their initial characters and 2) the position of the next suffix (the one with the initial character removed) in the next stripe. Proceeding from stripe j+1 to j, we scan j+1 from 0 to n-1 and place each i in j according to the j-th character of the string it represents (we keep a running permutation of the input string pointers for this lookup). 
+The Striped Index takes advantage of the fact that comparisons stop at terminators which have a pre-assigned order and act as tiebreakers in string comparisons. During sorting, these "fixed points" provide an initial ordering of the input records (technically it's the ordering of the empty, length 0 suffix that every record has).
+
+Producing the stripes is a linear-time process which is largely LSD Radix Sort. Working from right to left, elements representing suffixes are sorted according to 1) their initial characters and 2) the position of their next suffix (the one with the initial character removed) in the stripe to the right. Unlike radix sort however we record each suffix as a pointer (index) into the next stripe; each suffix points to the next, eg "cat" -> "at" -> "t", and we use this structure for search and decoding. 
+
+This linked list structure was originally based on the LF array that BWT-based compressors build during decoding; it's quick to follow for decoding but also a bit easier to envision compared to the BWT L array, which 
+
+As with radix sort we keep a running permutation of the input string pointers.
 
 The inner loop of this bucketing process runs at GB/s; it is mainly bounded by the speed of random pointer dereferencing. 
 
