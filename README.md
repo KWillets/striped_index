@@ -39,6 +39,10 @@ Once built a stripe is a rank/select data structure; any structure that implemen
 
 Another possibility is to store a stripe as a column in a columnstore data warehouse; these systems implement compression, selection and rank with varying degrees of efficiency.
 
+### Larger than Memory Case
+
+In-memory indexing uses an array of pointers which reference the input in its original order. This array is permuted with each stripe, resulting in an effectively random access pattern between the pointers and the strings they reference. Another possibility when a large enough RAM is not available is to permute the strings instead of the pointers, trading a larger amount of I/O to obtain a sequential access pattern at each stage. For each stripe, input strings are read sequentially and split into 256 output streams, which must be concatenated to form the next input. This technique works with a fixed amount of memory but a great deal of I/O (about k(k-1)/2 bytes of writing for each record of length k). Another possibility is a "fat pointer" that caches a chunk of each record alongside the pointer to the original data; even the in-memory case may benefit.
+
 ## Search
 
 The main tradeoff with this technique is that search must proceed from all the stripes instead of one array, since the columns are separated. Hence the emphasis on short records; iterating through a large number of stripes and initiating a search from each one could be prohibitive.
