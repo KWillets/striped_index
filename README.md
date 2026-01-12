@@ -1,5 +1,19 @@
-# Striped Index -- fulltext indexing at gigabytes per second
-A fulltext index for large numbers of short (~80 character) strings, which trades a minor increase in search overhead for a major (GB/s) increase in indexing speed. Saving each stage of LSD Radix Sort decomposes the suffix array into *stripes* which each index only one column (offset from the end) of the input. Radixwise backward search is similar to the FM Index, with the additional cost of starting from every column. 
+# Striped Index -- Fulltext Indexing at Gigabytes per Second
+
+A fulltext index for large numbers of short strings, which trades a minor increase in search overhead for a major (GB/s) increase in indexing speed. 
+
+## Background
+
+A number of compressed full text indexes have been developed which provide rapid string search at the cost of an initial indexing computation. The FM Index was developed to provide substring lookups in text which has undergone the Burrows-Wheeler Transform (BWT), originally a compression technique. The Suffix Array provides a similar function. In either structure, to find all occurrences of a substring one only needs to find the range of sorted suffixes which are prefixed by it.
+ 
+The FM Index applies a technique, backwards search, which utilizes links between suffixes which are inherent to the BWT format. These same links are used to decode the BWT-transformed text back to the original.
+
+The bulk of work in any index of this type is a suffix sort, where all suffixes of a text are placed into lexicographical order. Suffix sorting has linear complexity, but in practice it has a large constant factor, consuming many instructions per character. The cost of indexing may outweigh the benefits.
+
+
+
+
+Saving each stage of LSD Radix Sort decomposes the suffix array into *stripes* which each index only one column (offset from the end) of the input. Radixwise backward search is similar to the FM Index, with the additional cost of starting from every column. 
 
 Each stripe is in lexical order, with each element pointing to its suffix in the next stripe, allowing search and decoding via character indices.
 ![striped](https://github.com/user-attachments/assets/5c5f3423-c26a-4c9f-8629-3473be09cbda)
