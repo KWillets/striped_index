@@ -5,10 +5,10 @@ A compressed self-index for large numbers of short strings, which trades a minor
 This index provides substring search capability comparable to a suffix tree or the FM index, in storage near the optimal compressed size, with less overhead than previous approaches -- indexing in minutes rather than days. 
 
 As with other self-indexes, it provides four main functions:
- A. Index -- process a dataset into indexed form
- B. Count -- count the number of occurrences of a pattern in the dataset
- C. Locate -- list the records which contain the pattern
- D. Decode -- decode the text context of each pattern occurrence 
+ 1. Index -- process a dataset into indexed form
+ 2. Count -- count the number of occurrences of a pattern in the dataset
+ 3. Locate -- list the records which contain the pattern
+ 4. Decode -- decode the text context of each pattern occurrence 
 
 The index can reside in secondary storage with blockwise compression. Search operations do not need the entire index in RAM. The index is immutable, so updates to the source data cannot be reflected in the index except by rebuilding. It is more suitable for workloads such as analytics where data remains static.
 
