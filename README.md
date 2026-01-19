@@ -1,8 +1,10 @@
 # Striped Index -- Fulltext Indexing at Gigabytes per Second
 
+(Disclaimer -- this technique works, but the writeup is a work in progress. Clear description and links to prior research are incomplete.)
+
 A compressed self-index for large numbers of short strings, which trades a minor increase in search overhead for a major (GB/s) increase in indexing speed. It is ideal for situations where an inverted index falls short, and arbitrary character sequences may need to be located. Datasets with many short strings are common in databases and data warehouses, possibly more prevalent than single large texts, but specialized algorithms for this regime have not been developed.
 
-This index provides substring search capability comparable to a suffix tree or the FM index, in storage near the optimal compressed size, with less overhead than previous approaches -- indexing in minutes rather than days. 
+This index provides substring search capability comparable to a suffix tree or the FM index, in storage near the optimal compressed size, with less construction overhead than previous approaches -- indexing in minutes rather than days. 
 
 As with other self-indexes, it provides four main functions:
  1. Index -- process a dataset into indexed form
@@ -31,8 +33,14 @@ The bulk of work in any index of this type is a suffix sort, where all suffixes 
 
 
 
+## Algorithm
 
-Saving each stage of LSD Radix Sort decomposes the suffix array into *stripes* which each index only one column (offset from the end) of the input. Radixwise backward search is similar to the FM Index, with the additional cost of starting from every column. 
+The main difference of this algorithm is to separate suffixes by length rather than merging them into a single sorted array, in subarrays known as stripes. Each stripe representing suffixes of the form cS is sorted by (c, rank(S)) where rank(S) is the position of suffix S in the next stripe. The initial ranking of suffixes of length zero is given as input (eg as a record ID or input order), and the ranking of length 1,2..etc. suffixes is calculated recursively. This process is known as LSD (least significant digit) Radix Sort.
+
+For each suffix cS we store rank(S) in the next stripe, so that suffixes can be followed forward from cS to S as a linked list (see figure 1). For each stripe, we also save the bucket range for each character c calculated during radix sort. Each input string is a linked list where the position of each node indicates the character at that offset; decoding means simply following the linked list and looking up the character bucket that contains it.
+
+
+### Search
 
 Each stripe is in lexical order, with each element pointing to its suffix in the next stripe, allowing search and decoding via character indices.
 ![striped](https://github.com/user-attachments/assets/5c5f3423-c26a-4c9f-8629-3473be09cbda)
