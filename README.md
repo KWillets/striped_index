@@ -1,6 +1,25 @@
 # Striped Index -- Fulltext Indexing at Gigabytes per Second
 
-A fulltext index for large numbers of short strings, which trades a minor increase in search overhead for a major (GB/s) increase in indexing speed. 
+A compressed self-index for large numbers of short strings, which trades a minor increase in search overhead for a major (GB/s) increase in indexing speed. It is ideal for situations where an inverted index falls short, and arbitrary character sequences may need to be located. Datasets with many short strings are common in databases and data warehouses, possibly more prevalent than single large texts, but specialized algorithms for this regime have not been developed.
+
+This index provides substring search capability comparable to a suffix tree or the FM index, in storage near the optimal compressed size, with less overhead than previous approaches -- indexing in minutes rather than days. 
+
+As with other self-indexes, it provides four main functions:
+ A. Index -- process a dataset into indexed form
+ B. Count -- count the number of occurrences of a pattern in the dataset
+ C. Locate -- list the records which contain the pattern
+ D. Decode -- decode the text context of each pattern occurrence 
+
+The index can reside in secondary storage with blockwise compression. Search operations do not need the entire index in RAM. The index is immutable, so updates to the source data cannot be reflected in the index except by rebuilding. It is more suitable for workloads such as analytics where data remains static.
+
+Possible applications include:
+ 1. Fixed string search, eg "all records which contain 'exp('"
+ 2. Regular expression search, eg "all records containing a match for '2021-0[123]-[03][0-9]'"
+ 3. Search-as-you-type, where each keystroke extends the search incrementally.
+ 4. log search
+ 5. AI observability 
+
+
 
 ## Background
 
